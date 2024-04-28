@@ -24,8 +24,9 @@ env:
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: false
+  UPLOAD_FIRMWARE: false
+  GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+  UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
 
 jobs:
@@ -116,9 +117,9 @@ jobs:
         SFE_FLOW: 0
         ENABLE_WIFI_K510: 0
 
-    - name: Generate release tag
+    - name: 生成发布标签
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: ${{ env.PACKAGED_STATUS == 'success' }} && !cancelled()
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
         touch release.txt
@@ -134,30 +135,29 @@ jobs:
         " >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Upload firmware to release
+    - name: 发布固件到 Releases
       uses: softprops/action-gh-release@master
       if: steps.tag.outputs.status == 'success' && !cancelled()
-      env:
-        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
       with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
+        tag_name: OpenWrt_${{ env.PACKAGED_OUTPUTDATE }}
+        files: ${{ env.PACKAGED_OUTPUTPATH }}/*.img.xz
         body_path: release.txt
-        files: ${{ env.FIRMWARE }}/*
+        token: ${{ env.GITHUB_TOKEN }}
 
     - name: TG推送
-      run: curl "https://api2.pushdeer.com/message/push?pushkey=${{ secrets.PUSHDEER_TOKEN }}&text=【Github Actions】OpenWrt-N1打包成功"
+      run: curl "https://api2.pushdeer.com/message/push?pushkey=${{ secrets.PUSHDEER_TOKEN }}&text=【Github Actions】ImmortalWar-N1打包成功"
 
-    - name: Delete workflow runs
+    - name: 删除运行记录
       uses: Mattraks/delete-workflow-runs@main
       with:
-        retain_days: 0
+        retain_days: 1
         keep_minimum_runs: 2
+        token: ${{ env.GITHUB_TOKEN }}
 
-    - name: Remove old Releases
+    - name: 删除自动发布的旧固件
       uses: dev-drprasad/delete-older-releases@master
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         keep_latest: 3
         delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        token: ${{ env.GITHUB_TOKEN }}
